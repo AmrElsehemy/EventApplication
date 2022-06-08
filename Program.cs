@@ -9,6 +9,7 @@ namespace Viagogo
     {
         public string Name { get; set; }
         public string City { get; set; }
+        public int Price { get; set; }
     }
 
     public class Customer
@@ -23,15 +24,15 @@ namespace Viagogo
         {
             var events = new List<Event>
             {
-                new Event { Name = "Phantom of the Opera", City = "New York" },
-                new Event { Name = "Metallica", City = "Los Angeles" },
-                new Event { Name = "Metallica", City = "New York" },
-                new Event { Name = "Metallica", City = "Boston" },
-                new Event { Name = "LadyGaGa", City = "New York" },
-                new Event { Name = "LadyGaGa", City = "Boston" },
-                new Event { Name = "LadyGaGa", City = "Chicago" },
-                new Event { Name = "LadyGaGa", City = "San Francisco" },
-                new Event { Name = "LadyGaGa", City = "Washington" }
+                new Event { Name = "Phantom of the Opera", City = "New York", Price = 1 },
+                new Event { Name = "Metallica", City = "Los Angeles", Price = 6 },
+                new Event { Name = "Metallica", City = "New York", Price = 7 },
+                new Event { Name = "Metallica", City = "Boston", Price = 9 },
+                new Event { Name = "LadyGaGa", City = "New York", Price = 8 },
+                new Event { Name = "LadyGaGa", City = "Boston", Price = 5 },
+                new Event { Name = "LadyGaGa", City = "Chicago", Price = 3 },
+                new Event { Name = "LadyGaGa", City = "San Francisco", Price = 2 },
+                new Event { Name = "LadyGaGa", City = "Washington", Price = 5 }
             };
 
             // pre-req: grouping data structure for faster access
@@ -54,6 +55,7 @@ namespace Viagogo
                 .OrderBy(e => e.Distance)
                 .Take(5)
                 .Select(e => e.Event);
+            Console.WriteLine("----");
 
             foreach (var item in nearest5)
             {
@@ -62,28 +64,81 @@ namespace Viagogo
 
             // 3. If the GetDistance method is an API call which could fail or is too expensive, how will u improve the code written in 2
             var cachedDistances = new Dictionary<string, int>();
-            foreach (var evt in events.Where(evt => !cachedDistances.ContainsKey(evt.City)))
-            {
-                cachedDistances.Add(evt.City, GetDistance(customer.City, evt.City));
-            }
 
             var nearest5optimzed = events.Select(ev =>
-                    new { Event = ev, Distance = cachedDistances[ev.City] })
+                    {
+                        if (!cachedDistances.ContainsKey(ev.City))
+                        {
+                            cachedDistances.Add(ev.City, GetDistance(customer.City, ev.City));
+                        }
+
+                        return new
+                        {
+                            Event = ev,
+                            Distance = cachedDistances[ev.City]
+                        };
+                    }
+                )
                 .OrderBy(e => e.Distance)
                 .Take(5)
                 .Select(e => e.Event);
+            Console.WriteLine("----");
 
             foreach (var item in nearest5optimzed)
             {
                 AddToEmail(customer, item);
             }
-            
+
             // 4. If the GetDistance method can fail, we don't want the process to fail. What can be done?
             // Amr: based on the business requirements here are a few solutions:
-             // -- retry again with different retry policy (1 sec, 5 sec, 10 sec) 
-             // -- skip the whole city and assume int.Max
-             // -- since we don't really know if it's near or not, maybe an averaged distance (heuristic)
-            
+            // -- retry again with different retry policy (1 sec, 5 sec, 10 sec) 
+            // -- skip the whole city and assume int.Max
+            // -- since we don't really know if it's near or not, maybe an averaged distance (heuristic)
+
+            // random value 
+            var rnd = new Random((int)DateTime.Now.Ticks);
+
+            var nearest5Failsafe = events.Select(ev =>
+                    {
+                        var gotDistance = rnd.Next(4) != 1;
+
+                        if (!cachedDistances.ContainsKey(ev.City))
+                        {
+                            cachedDistances.Add(ev.City, GetDistance(customer.City, ev.City));
+                        }
+
+                        return new
+                        {
+                            Event = ev,
+                            // here we decide which value to put in distance as it will affect the sort
+                            Distance = gotDistance ? cachedDistances[ev.City] : int.MaxValue
+                        };
+                    }
+                )
+                .OrderBy(e => e.Distance)
+                .Take(5)
+                .Select(e => e.Event);
+
+            Console.WriteLine("----");
+            foreach (var item in nearest5Failsafe)
+            {
+                AddToEmail(customer, item);
+            }
+
+            // 5. If we also want to sort the resulting events by other fields like price, etc. to determine which
+            // ones to send to the customer, how would you implement it
+
+            // assuming they are already filtered by one of the above criteria
+            var sortableEvents = events;
+
+            // can use a lambda expression to allow many complex scenarios of sorting
+            sortableEvents.Sort((x, y) => x.Price.CompareTo(y.Price));
+            Console.WriteLine("----");
+
+            foreach (var item in sortableEvents)
+            {
+                AddToEmail(customer, item, item.Price);
+            }
         }
 
         // You do not need to know how these methods work
